@@ -7,6 +7,10 @@ from contextlib import ExitStack, contextmanager
 from typing import List, Union
 import torch
 from torch import nn
+import pandas as pd
+import numpy as np
+import cv2
+from scipy.optimize import linear_sum_assignment
 
 from detectron2.utils.comm import get_world_size, is_main_process
 from detectron2.utils.logger import log_every_n_seconds
@@ -101,7 +105,7 @@ class DatasetEvaluators(DatasetEvaluator):
 
 
 def inference_on_dataset(
-    model, data_loader, evaluator: Union[DatasetEvaluator, List[DatasetEvaluator], None]
+    model, data_loader, evaluator: Union[DatasetEvaluator, List[DatasetEvaluator], None], fold=0, step='0', output_dir_path=""
 ):
     """
     Run model on the data_loader and evaluate the metrics with evaluator.
@@ -146,6 +150,8 @@ def inference_on_dataset(
         stack.enter_context(torch.no_grad())
 
         start_data_time = time.perf_counter()
+
+        segmentation_results = np.zeros((int(len(data_loader)), 256, 256, 2))
         for idx, inputs in enumerate(data_loader):
             total_data_time += time.perf_counter() - start_data_time
             if idx == num_warmup:
@@ -156,6 +162,25 @@ def inference_on_dataset(
 
             start_compute_time = time.perf_counter()
             outputs = model(inputs)
+
+            # print(inputs[0]["height"])
+            # print("-", len(outputs[0]), len(outputs[0]['instances'].pred_boxes), len(outputs[0]['instances'].scores), len(outputs[0]['instances'].pred_classes))
+            # print(outputs[0]['instances'].pred_boxes.tensor.size())
+            
+            for r_idx in range(outputs[0]['instances'].pred_boxes.tensor.size(0)):
+                r_score = outputs[0]['instances'].scores[r_idx]
+                # print(torch.unique(outputs[0]['instances'].pred_classes))
+
+                single_instance_mask = outputs[0]['instances'].pred_masks[r_idx, :]
+                if r_score >= 0.5:
+                    single_mask = single_instance_mask.cpu().numpy()
+                    # print(single_mask.shape, single_mask.min(), single_mask.max())
+                    instance_part_resized = cv2.resize((single_mask*255).astype('uint8'), (256, 256), interpolation=cv2.INTER_NEAREST).astype(np.bool)
+                    # print(instance_part_resized.shape, instance_part_resized.min(), instance_part_resized.max())
+
+                    segmentation_results[idx, ..., 0][instance_part_resized] = r_idx+1
+                    segmentation_results[idx, ..., 1][instance_part_resized] = (int(outputs[0]['instances'].pred_classes[r_idx])+1)
+            
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             total_compute_time += time.perf_counter() - start_compute_time
@@ -184,6 +209,8 @@ def inference_on_dataset(
                     n=5,
                 )
             start_data_time = time.perf_counter()
+        print(f"save to {output_dir_path}/tmp/results/instance_pred_fold_{fold}.npy")
+        np.save(f'{output_dir_path}/tmp/results/instance_pred_fold_{fold}.npy', segmentation_results)
 
     # Measure the time only for this worker (before the synchronization barrier)
     total_time = time.perf_counter() - start_time
@@ -201,12 +228,14 @@ def inference_on_dataset(
         )
     )
 
-    results = evaluator.evaluate()
-    # An evaluator may return None when not in main process.
-    # Replace it by an empty dict instead to make it easier for downstream code to handle
-    if results is None:
-        results = {}
+    results = {}
     return results
+    # results = evaluator.evaluate()
+    # # An evaluator may return None when not in main process.
+    # # Replace it by an empty dict instead to make it easier for downstream code to handle
+    # if results is None:
+    #     results = {}
+    # return results
 
 
 @contextmanager

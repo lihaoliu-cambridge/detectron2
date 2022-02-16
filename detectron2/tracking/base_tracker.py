@@ -16,7 +16,6 @@ class BaseTracker(object):
     """
     A parent class for all trackers
     """
-
     @configurable
     def __init__(self, **kwargs):
         self._prev_instances = None  # (D2)instances for previous frame
@@ -52,13 +51,7 @@ class BaseTracker(object):
 
 def build_tracker_head(cfg: CfgNode_) -> BaseTracker:
     """
-    Build a tracker head from `cfg.TRACKER_HEADS.TRACKER_NAME`.
-
-    Args:
-        cfg: D2 CfgNode, config file with tracker information
-    Return:
-        tracker object
+    Build a semantic segmentation head from `cfg.MODEL.SEM_SEG_HEAD.NAME`.
     """
-    name = cfg.TRACKER_HEADS.TRACKER_NAME
-    tracker_class = TRACKER_HEADS_REGISTRY.get(name)
-    return tracker_class(cfg)
+    name = cfg.TRACKING.TRACKER_NAME
+    return TRACKER_HEADS_REGISTRY.get(name)(cfg)

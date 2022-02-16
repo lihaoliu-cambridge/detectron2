@@ -38,6 +38,8 @@ from detectron2.evaluation import (
     verify_results,
 )
 from detectron2.modeling import GeneralizedRCNNWithTTA
+from detectron2.data.datasets import register_coco_instances
+from detectron2.data.datasets.builtin_meta import _get_coco_instances_meta
 
 
 def build_evaluator(cfg, dataset_name, output_folder=None):
@@ -136,11 +138,11 @@ def main(args):
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )
-        res = Trainer.test(cfg, model)
-        if cfg.TEST.AUG.ENABLED:
-            res.update(Trainer.test_with_TTA(cfg, model))
-        if comm.is_main_process():
-            verify_results(cfg, res)
+        res = Trainer.test(cfg, model, fold=args.fold, step=args.step, output_dir_path=args.output_dir_path)
+        # if cfg.TEST.AUG.ENABLED:
+        #     res.update(Trainer.test_with_TTA(cfg, model))
+        # if comm.is_main_process():
+        #     verify_results(cfg, res)
         return res
 
     """
@@ -160,6 +162,9 @@ def main(args):
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()
     print("Command Line Args:", args)
+
+    register_coco_instances("test_dataset", _get_coco_instances_meta(), args.json_file_path, args.image_dir_path)
+
     launch(
         main,
         args.num_gpus,

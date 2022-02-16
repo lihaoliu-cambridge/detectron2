@@ -119,6 +119,11 @@ Run on multiple machines:
     parser.add_argument(
         "--machine-rank", type=int, default=0, help="the rank of this machine (unique per machine)"
     )
+    parser.add_argument("--fold", type=int, default=0, help="which fold")
+    parser.add_argument("--step", type=str, default='0', help="which step")
+    parser.add_argument("--json_file_path", type=str, help="json file")
+    parser.add_argument("--image_dir_path", type=str, help="image folder")
+    parser.add_argument("--output_dir_path", type=str, help="output folder")
 
     # PyTorch still may leave orphan processes in multi-gpu training.
     # Therefore we use a deterministic way to obtain port,
@@ -574,7 +579,7 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
         )
 
     @classmethod
-    def test(cls, cfg, model, evaluators=None):
+    def test(cls, cfg, model, evaluators=None, fold=0, step="0", output_dir_path=""):
         """
         Evaluate the given model. The given model is expected to already contain
         weights to evaluate.
@@ -585,6 +590,9 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
             evaluators (list[DatasetEvaluator] or None): if None, will call
                 :meth:`build_evaluator`. Otherwise, must have the same length as
                 ``cfg.DATASETS.TEST``.
+            fold:
+            step:
+            output_dir_path:
 
         Returns:
             dict: a dict of result metrics
@@ -614,7 +622,9 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
                     )
                     results[dataset_name] = {}
                     continue
-            results_i = inference_on_dataset(model, data_loader, evaluator)
+            if output_dir_path == "":
+                raise Exception("No output dir.")
+            results_i = inference_on_dataset(model, data_loader, evaluator, fold=fold, step=step, output_dir_path=output_dir_path)
             results[dataset_name] = results_i
             if comm.is_main_process():
                 assert isinstance(

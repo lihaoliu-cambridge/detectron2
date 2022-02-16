@@ -4,7 +4,6 @@ import numpy as np
 import torch
 
 from detectron2 import model_zoo
-from detectron2.config import CfgNode, instantiate
 from detectron2.data import DatasetCatalog
 from detectron2.data.detection_utils import read_image
 from detectron2.modeling import build_model
@@ -22,12 +21,9 @@ def get_model_no_weights(config_path):
     Like model_zoo.get, but do not load any weights (even pretrained)
     """
     cfg = model_zoo.get_config(config_path)
-    if isinstance(cfg, CfgNode):
-        if not torch.cuda.is_available():
-            cfg.MODEL.DEVICE = "cpu"
-        return build_model(cfg)
-    else:
-        return instantiate(cfg.model)
+    if not torch.cuda.is_available():
+        cfg.MODEL.DEVICE = "cpu"
+    return build_model(cfg)
 
 
 def random_boxes(num_boxes, max_coord=100, device="cpu"):

@@ -166,5 +166,5 @@ def load_mesh_symmetry(
 
 
 @lru_cache()
-def create_mesh(mesh_name: str, device: Optional[torch.device] = None) -> Mesh:
+def create_mesh(mesh_name: str, device: Optional[torch.device] = None):
     return Mesh(mesh_info=MeshCatalog[mesh_name], device=device)

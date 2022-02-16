@@ -2,7 +2,7 @@
 import logging
 
 
-def verbosity_to_level(verbosity) -> int:
+def verbosity_to_level(verbosity):
     if verbosity is not None:
         if verbosity == 0:
             return logging.WARNING

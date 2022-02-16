@@ -20,6 +20,15 @@ import logging
 import os
 from collections import OrderedDict
 import torch
+import copy
+import cv2
+import numpy as np
+import imgaug as ia
+import imgaug.augmenters as iaa
+from detectron2.data import build_detection_train_loader
+from detectron2.data import detection_utils as utils
+from detectron2.data import transforms as T
+
 
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
@@ -86,6 +95,149 @@ def build_evaluator(cfg, dataset_name, output_folder=None):
     return DatasetEvaluators(evaluator_list)
 
 
+####
+def gaussian_blur(images, random_state, parents, hooks, max_ksize=3):
+    """Apply Gaussian blur to input images."""
+    img = images[0]  # aleju input batch as default (always=1 in our case)
+    ksize = random_state.randint(0, max_ksize, size=(2,))
+    ksize = tuple((ksize * 2 + 1).tolist())
+
+    ret = cv2.GaussianBlur(
+        img, ksize, sigmaX=0, sigmaY=0, borderType=cv2.BORDER_REPLICATE
+    )
+    ret = np.reshape(ret, img.shape)
+    ret = ret.astype(np.uint8)
+    return [ret]
+
+
+####
+def median_blur(images, random_state, parents, hooks, max_ksize=3):
+    """Apply median blur to input images."""
+    img = images[0]  # aleju input batch as default (always=1 in our case)
+    ksize = random_state.randint(0, max_ksize)
+    ksize = ksize * 2 + 1
+    ret = cv2.medianBlur(img, ksize)
+    ret = ret.astype(np.uint8)
+    return [ret]
+
+
+####
+def add_to_hue(images, random_state, parents, hooks, range=None):
+    """Perturbe the hue of input images."""
+    img = images[0]  # aleju input batch as default (always=1 in our case)
+    hue = random_state.uniform(*range)
+    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+    if hsv.dtype.itemsize == 1:
+        # OpenCV uses 0-179 for 8-bit images
+        hsv[..., 0] = (hsv[..., 0] + hue) % 180
+    else:
+        # OpenCV uses 0-360 for floating point images
+        hsv[..., 0] = (hsv[..., 0] + 2 * hue) % 360
+    ret = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    ret = ret.astype(np.uint8)
+    return [ret]
+
+
+####
+def add_to_saturation(images, random_state, parents, hooks, range=None):
+    """Perturbe the saturation of input images."""
+    img = images[0]  # aleju input batch as default (always=1 in our case)
+    value = 1 + random_state.uniform(*range)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    ret = img * value + (gray * (1 - value))[:, :, np.newaxis]
+    ret = np.clip(ret, 0, 255)
+    ret = ret.astype(np.uint8)
+    return [ret]
+
+
+####
+def add_to_contrast(images, random_state, parents, hooks, range=None):
+    """Perturbe the contrast of input images."""
+    img = images[0]  # aleju input batch as default (always=1 in our case)
+    value = random_state.uniform(*range)
+    mean = np.mean(img, axis=(0, 1), keepdims=True)
+    ret = img * value + mean * (1 - value)
+    ret = np.clip(img, 0, 255)
+    ret = ret.astype(np.uint8)
+    return [ret]
+
+
+####
+def add_to_brightness(images, random_state, parents, hooks, range=None):
+    """Perturbe the brightness of input images."""
+    img = images[0]  # aleju input batch as default (always=1 in our case)
+    value = random_state.uniform(*range)
+    ret = np.clip(img + value, 0, 255)
+    ret = ret.astype(np.uint8)
+    return [ret]
+
+
+def customed_mapper(dataset_dict):
+    dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+    image = utils.read_image(dataset_dict["file_name"], format="BGR")
+
+    # image
+    image, transforms = T.apply_transform_gens([
+        T.RandomApply(T.RandomCrop(crop_type="relative_range", crop_size=(0.9, 0.9)), prob=0.50),
+        T.RandomApply(T.Resize(shape=(512, 512)), prob=1.0),
+        T.RandomFlip(prob=0.50, horizontal=True, vertical=False),
+        T.RandomFlip(prob=0.50, horizontal=False, vertical=True),
+        # # T.RandomApply(transform=T.RandomRotation(angle=[-30,30], expand=True, center=None, sample_style="range", interp=None), prob=0.20)
+        # T.RandomApply(transform=T.RandomBrightness(intensity_min=0.75, intensity_max=1.25), prob=0.20),
+        # T.RandomApply(transform=T.RandomContrast(intensity_min=0.75, intensity_max=1.25), prob=0.20),
+        # T.RandomApply(transform=T.RandomSaturation(intensity_min=0.75, intensity_max=1.25), prob=0.20),
+    ], image)
+
+    input_augs = iaa.Sequential([
+        iaa.OneOf([
+            iaa.Lambda(
+                seed=0,
+                func_images=lambda *args: gaussian_blur(*args, max_ksize=3),
+            ),
+            iaa.Lambda(
+                seed=0,
+                func_images=lambda *args: median_blur(*args, max_ksize=3),
+            ),
+            iaa.AdditiveGaussianNoise(
+                loc=0, scale=(0.0, 0.05 * 255), per_channel=0.5
+            ),
+        ]),
+        iaa.Sequential([
+            iaa.Lambda(
+                seed=0,
+                func_images=lambda *args: add_to_hue(*args, range=(-8, 8)),
+            ),
+            iaa.Lambda(
+                seed=0,
+                func_images=lambda *args: add_to_saturation(*args, range=(-0.2, 0.2)),
+            ),
+            iaa.Lambda(
+                seed=0,
+                func_images=lambda *args: add_to_brightness(*args, range=(-26, 26)),
+            ),
+            iaa.Lambda(
+                seed=0,
+                func_images=lambda *args: add_to_contrast(*args, range=(0.75, 1.25)),
+            ),
+        ], random_order=True,),
+    ])
+    input_augs = input_augs.to_deterministic()
+    image = input_augs.augment_image(image) 
+
+    dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+
+    # annos
+    annos = [
+        utils.transform_instance_annotations(obj, transforms, image.shape[:2])
+        for obj in dataset_dict.pop("annotations")
+        if obj.get("iscrowd", 0) == 0
+    ]
+    instances = utils.annotations_to_instances(annos, image.shape[:2])
+    dataset_dict["instances"] = utils.filter_empty_instances(instances)
+
+    return dataset_dict
+
+
 class Trainer(DefaultTrainer):
     """
     We use the "DefaultTrainer" which contains pre-defined default logic for
@@ -115,6 +267,10 @@ class Trainer(DefaultTrainer):
         res = OrderedDict({k + "_TTA": v for k, v in res.items()})
         return res
 
+    @classmethod
+    def build_train_loader(cls, cfg):
+        return build_detection_train_loader(cfg, mapper=customed_mapper)
+
 
 def setup(args):
     """
@@ -136,7 +292,7 @@ def main(args):
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )
-        res = Trainer.test(cfg, model)
+        res = Trainer.test(cfg, model, fold=args.fold, step=args.step)
         if cfg.TEST.AUG.ENABLED:
             res.update(Trainer.test_with_TTA(cfg, model))
         if comm.is_main_process():

@@ -53,16 +53,16 @@ _C.INPUT = CN()
 # By default, {MIN,MAX}_SIZE options are used in transforms.ResizeShortestEdge.
 # Please refer to ResizeShortestEdge for detailed definition.
 # Size of the smallest side of the image during training
-_C.INPUT.MIN_SIZE_TRAIN = (800,)
+_C.INPUT.MIN_SIZE_TRAIN = (512,)
 # Sample size of smallest side by choice or random selection from range give by
 # INPUT.MIN_SIZE_TRAIN
 _C.INPUT.MIN_SIZE_TRAIN_SAMPLING = "choice"
 # Maximum size of the side of the image during training
-_C.INPUT.MAX_SIZE_TRAIN = 1333
+_C.INPUT.MAX_SIZE_TRAIN = 512
 # Size of the smallest side of the image during testing. Set to zero to disable resize in testing.
-_C.INPUT.MIN_SIZE_TEST = 800
+_C.INPUT.MIN_SIZE_TEST = 512
 # Maximum size of the side of the image during testing
-_C.INPUT.MAX_SIZE_TEST = 1333
+_C.INPUT.MAX_SIZE_TEST = 512
 # Mode for flipping images used in data augmentation during training
 # choose one of ["horizontal, "vertical", "none"]
 _C.INPUT.RANDOM_FLIP = "horizontal"
@@ -250,7 +250,7 @@ _C.MODEL.RPN.CONV_DIMS = [-1]
 _C.MODEL.ROI_HEADS = CN()
 _C.MODEL.ROI_HEADS.NAME = "Res5ROIHeads"
 # Number of foreground classes
-_C.MODEL.ROI_HEADS.NUM_CLASSES = 80
+_C.MODEL.ROI_HEADS.NUM_CLASSES = 6
 # Names of the input feature maps to be used by ROI heads
 # Currently all heads (box, mask, ...) use the same input feature map list
 # e.g., ["p2", "p3", "p4", "p5"] is commonly used for FPN
@@ -395,7 +395,7 @@ _C.MODEL.SEM_SEG_HEAD.IN_FEATURES = ["p2", "p3", "p4", "p5"]
 # the correposnding pixel.
 _C.MODEL.SEM_SEG_HEAD.IGNORE_VALUE = 255
 # Number of classes in the semantic segmentation head
-_C.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 54
+_C.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 6 + 1
 # Number of channels in the 3x3 convs inside semantic-FPN heads.
 _C.MODEL.SEM_SEG_HEAD.CONVS_DIM = 128
 # Outputs from semantic-FPN heads are up-scaled to the COMMON_STRIDE stride.
@@ -421,7 +421,7 @@ _C.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = 0.5
 _C.MODEL.RETINANET = CN()
 
 # This is the number of foreground classes.
-_C.MODEL.RETINANET.NUM_CLASSES = 80
+_C.MODEL.RETINANET.NUM_CLASSES = 6
 
 _C.MODEL.RETINANET.IN_FEATURES = ["p3", "p4", "p5", "p6", "p7"]
 
@@ -596,7 +596,7 @@ _C.TEST.EVAL_PERIOD = 0
 _C.TEST.KEYPOINT_OKS_SIGMAS = []
 # Maximum number of detections to return per image during inference (100 is
 # based on the limit established for the COCO dataset).
-_C.TEST.DETECTIONS_PER_IMAGE = 100
+_C.TEST.DETECTIONS_PER_IMAGE = 400
 
 _C.TEST.AUG = CN({"ENABLED": False})
 _C.TEST.AUG.MIN_SIZES = (400, 500, 600, 700, 800, 900, 1000, 1100, 1200)

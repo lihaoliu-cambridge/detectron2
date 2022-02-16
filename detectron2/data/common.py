@@ -237,8 +237,5 @@ class AspectRatioGroupedDataset(data.IterableDataset):
             bucket = self._buckets[bucket_id]
             bucket.append(d)
             if len(bucket) == self.batch_size:
-                data = bucket[:]
-                # Clear bucket first, because code after yield is not
-                # guaranteed to execute
+                yield bucket[:]
                 del bucket[:]
-                yield data

@@ -56,7 +56,7 @@ Instance = Dict[str, Any]
 InstancePredicate = Callable[[Instance], bool]
 
 
-def _compute_num_images_per_worker(cfg: CfgNode) -> int:
+def _compute_num_images_per_worker(cfg: CfgNode):
     num_workers = get_world_size()
     images_per_batch = cfg.SOLVER.IMS_PER_BATCH
     assert (
@@ -73,7 +73,7 @@ def _compute_num_images_per_worker(cfg: CfgNode) -> int:
     return images_per_worker
 
 
-def _map_category_id_to_contiguous_id(dataset_name: str, dataset_dicts: Iterable[Instance]) -> None:
+def _map_category_id_to_contiguous_id(dataset_name: str, dataset_dicts: Iterable[Instance]):
     meta = MetadataCatalog.get(dataset_name)
     for dataset_dict in dataset_dicts:
         for ann in dataset_dict["annotations"]:
@@ -109,7 +109,7 @@ class _DatasetCategory:
 _MergedCategoriesT = Dict[int, List[_DatasetCategory]]
 
 
-def _add_category_id_to_contiguous_id_maps_to_metadata(merged_categories: _MergedCategoriesT) -> None:
+def _add_category_id_to_contiguous_id_maps_to_metadata(merged_categories: _MergedCategoriesT):
     merged_categories_per_dataset = {}
     for contiguous_cat_id, cat_id in enumerate(sorted(merged_categories.keys())):
         for cat in merged_categories[cat_id]:
@@ -266,7 +266,7 @@ def _maybe_filter_and_map_categories(
     return filtered_dataset_dicts
 
 
-def _add_category_whitelists_to_metadata(cfg: CfgNode) -> None:
+def _add_category_whitelists_to_metadata(cfg: CfgNode):
     for dataset_name, whitelisted_cat_ids in cfg.DATASETS.WHITELISTED_CATEGORIES.items():
         meta = MetadataCatalog.get(dataset_name)
         meta.whitelisted_categories = whitelisted_cat_ids
@@ -278,7 +278,7 @@ def _add_category_whitelists_to_metadata(cfg: CfgNode) -> None:
         )
 
 
-def _add_category_maps_to_metadata(cfg: CfgNode) -> None:
+def _add_category_maps_to_metadata(cfg: CfgNode):
     for dataset_name, category_map in cfg.DATASETS.CATEGORY_MAPS.items():
         category_map = {
             int(cat_id_src): int(cat_id_dst) for cat_id_src, cat_id_dst in category_map.items()
@@ -289,7 +289,7 @@ def _add_category_maps_to_metadata(cfg: CfgNode) -> None:
         logger.info("Category maps for dataset {}: {}".format(dataset_name, meta.category_map))
 
 
-def _add_category_info_to_bootstrapping_metadata(dataset_name: str, dataset_cfg: CfgNode) -> None:
+def _add_category_info_to_bootstrapping_metadata(dataset_name: str, dataset_cfg: CfgNode):
     meta = MetadataCatalog.get(dataset_name)
     meta.category_to_class_mapping = get_category_to_class_mapping(dataset_cfg)
     meta.categories = dataset_cfg.CATEGORIES
@@ -302,7 +302,7 @@ def _add_category_info_to_bootstrapping_metadata(dataset_name: str, dataset_cfg:
     )
 
 
-def _maybe_add_class_to_mesh_name_map_to_metadata(dataset_names: List[str], cfg: CfgNode) -> None:
+def _maybe_add_class_to_mesh_name_map_to_metadata(dataset_names: List[str], cfg: CfgNode):
     for dataset_name in dataset_names:
         meta = MetadataCatalog.get(dataset_name)
         if not hasattr(meta, "class_to_mesh_name"):
@@ -348,7 +348,7 @@ def _merge_categories(dataset_names: Collection[str]) -> _MergedCategoriesT:
     return merged_categories
 
 
-def _warn_if_merged_different_categories(merged_categories: _MergedCategoriesT) -> None:
+def _warn_if_merged_different_categories(merged_categories: _MergedCategoriesT):
     logger = logging.getLogger(__name__)
     for cat_id in merged_categories:
         merged_categories_i = merged_categories[cat_id]
